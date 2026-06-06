@@ -97,23 +97,29 @@ However, larger models require more computational resources, increased memory us
 
 | # | Question | Expected answer |
 |---|----------|-----------------|
-| 1 | | |
-| 2 | | |
-| 3 | | |
-| 4 | | |
-| 5 | | |
+| 1 | Does Miami Dade College provide student dormitories? | No. MDC does not provide traditional student housing and students must arrange off-campus housing independently. |
+| 2 | What websites can students use to search for apartments near MDC? | Apartments.com, Student.com, Casita, CampusRent, Room Choice, and similar housing platforms. |
+| 3 | What housing resources are available for international students? | MDC provides housing resource information and referrals through its International Student Services pages. |
+| 4 | What are common housing options for MDC students? | Apartments, shared apartments, private rooms, roommate arrangements, and student-oriented housing. |
+| 5 | Why do many students look for roommates? | To reduce housing costs and make living in the Miami area more affordable. |
 
 ---
 
 ## Anticipated Challenges
 
-<!-- What could go wrong? Name at least two specific risks with reasoning.
-     Consider: noisy or inconsistent documents, missing source attribution, off-topic
-     retrieval, chunks that split key information across boundaries. -->
+## Anticipated Challenges
 
-1.
+1. **Inconsistent information**  
+   Official sources, housing websites, and Reddit discussions may provide conflicting or outdated information.
 
-2.
+2. **Outdated housing data**  
+   Rental prices and apartment availability change frequently, which can reduce answer accuracy.
+
+3. **Off-topic retrieval**  
+   Some webpages contain ads or unrelated content that may be retrieved instead of useful housing information.
+
+4. **Chunk boundary issues**  
+   Important details may be split across multiple chunks, causing incomplete retrieval results.
 
 ---
 

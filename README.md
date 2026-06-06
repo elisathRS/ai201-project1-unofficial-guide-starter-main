@@ -13,7 +13,7 @@
      Why is this knowledge valuable, and why is it hard to find through official channels?
      Example: "Student reviews of CS professors at [university] — useful because official
      course descriptions don't reflect teaching style, exam difficulty, or workload." -->
-     
+
 Off-Campus Housing for Miami Dade College (MDC) Students
 
 I chose this domain because Miami Dade College does not provide traditional student housing, so students must find apartments, shared housing, or roommate arrangements on their own. Information about housing options, costs, neighborhoods, and student experiences is scattered across many websites and discussion forums rather than being available through a single official source. A retrieval-based system could help students quickly find answers about housing options, affordability, commuting, and common challenges.     
@@ -37,7 +37,7 @@ I chose this domain because Miami Dade College does not provide traditional stud
 | 7 | Room Choice – Housing Near Miami Dade College | Student Housing Directory | https://www.roomchoice.com/schools/fl/miami-dade-college/ |
 | 8 | CampusRent – Miami Dade College Apartments | Apartment Listings | https://www.campusrent.com/miami-dade-college-apartments.cfm |
 | 9 | Casita – Student Accommodation Near MDC | Student Housing Platform | https://www.casita.com/student-accommodation/usa/miami/miami-dade-college |
-| 10 | Housing and Apartment Recommendation Discussions | Reddit Forum Discussions | r/MiamiDadeCollege (housing-related threads and posts) |
+| 10 | Housing and Apartment Recommendation Discussions | Reddit Forum Discussions | https://www.reddit.com/r/Miami/comments/ho17nc/looking_for_student_housing_optionsroommates/?solution=695d3b7da5a626d5695d3b7da5a626d5&js_challenge=1&token=7afd7253fec22262ff1c52b1703fe9ec767d2812cf5ce2b2d2ea0c33dceb5aa5&jsc_orig_r=&utm_source=chatgpt.com |
 
 ---
 
