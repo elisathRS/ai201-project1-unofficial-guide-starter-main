@@ -9,7 +9,9 @@
 
 ## Domain
 
-<!-- What domain did you choose? Why is this knowledge valuable and hard to find through official channels? -->
+Off-Campus Housing for Miami Dade College (MDC) Students
+
+I chose this domain because Miami Dade College does not provide traditional student housing, so students must find apartments, shared housing, or roommate arrangements on their own. Information about housing options, costs, neighborhoods, and student experiences is scattered across many websites and discussion forums rather than being available through a single official source. A retrieval-based system could help students quickly find answers about housing options, affordability, commuting, and common challenges. 
 
 ---
 
@@ -18,18 +20,19 @@
 <!-- List your specific sources: URLs, subreddit names, forum threads, or file descriptions.
      Aim for at least 10 sources that together cover different subtopics or perspectives within your domain. -->
 
-| # | Source | Description | URL or location |
-|---|--------|-------------|-----------------|
-| 1 | | | |
-| 2 | | | |
-| 3 | | | |
-| 4 | | | |
-| 5 | | | |
-| 6 | | | |
-| 7 | | | |
-| 8 | | | |
-| 9 | | | |
-| 10 | | | |
+
+| # | Source | Type | URL or file path |
+|---|--------|------|-----------------|
+| 1 | MDC Housing Resources for International Students | Official College Resource | https://www.mdc.edu/internationalstudents/resources/housing.aspx |
+| 2 | MDC FAQ: Does MDC Have Student Housing? | Official FAQ | https://faq.mdc.edu/knowledgebase/does-mdc-have-student-housing/ |
+| 3 | Apartments.com – Off-Campus Housing Near MDC Wolfson Campus | Apartment Listing Guide | https://www.apartments.com/local-guide/off-campus-housing/fl/miami/miami-dade-college-wolfson-campus/ |
+| 4 | Fllat – Off-Campus Housing Near Miami Dade College | Student Housing Platform | https://fllat.com/miami/off-campus-housing-near-miami-dade-college |
+| 5 | CollegeFind – Apartments Near Miami Dade College | Apartment Search Guide | https://www.college-find.com/apartments/miami-dade-college |
+| 6 | Student.com – Miami Dade College Housing | Student Accommodation Directory | https://www.student.com/us/miami/u/miami-dade-college |
+| 7 | Room Choice – Housing Near Miami Dade College | Student Housing Directory | https://www.roomchoice.com/schools/fl/miami-dade-college/ |
+| 8 | CampusRent – Miami Dade College Apartments | Apartment Listings | https://www.campusrent.com/miami-dade-college-apartments.cfm |
+| 9 | Casita – Student Accommodation Near MDC | Student Housing Platform | https://www.casita.com/student-accommodation/usa/miami/miami-dade-college |
+| 10 | Housing and Apartment Recommendation Discussions | Reddit Forum Discussions | r/MiamiDadeCollege (housing-related threads and posts) |
 
 ---
 
@@ -40,11 +43,24 @@
      numbers fit the structure of your documents.
      A review-heavy corpus warrants different chunking than a long FAQ. -->
 
-**Chunk size:**
+**Chunk size:** 500 characters
 
-**Overlap:**
+**Overlap:** 100 characters
 
-**Reasoning:**
+**Preprocessing:**
+
+- Extract text from each webpage.
+- Remove HTML tags, navigation menus, advertisements, and footer content.
+- Normalize whitespace and remove duplicate blank lines.
+- Preserve paragraph breaks when possible before chunking.
+
+
+**Reasoning:** Most of the sources are housing guides, FAQs, apartment listings, and student discussion posts. These documents typically contain short to medium-length sections rather than long articles. A chunk size of 500 characters is large enough to capture a complete housing recommendation, apartment description, FAQ answer, or student comment while remaining small enough for accurate retrieval.
+
+I use a 100-character overlap because important information may span chunk boundaries. For example, details about rental costs, housing requirements, or neighborhood recommendations may begin near the end of one chunk and continue into the next. The overlap helps preserve context and improves retrieval quality.
+
+If chunks were significantly smaller, important information could be split apart and retrieved without sufficient context. If chunks were much larger, retrieval could return irrelevant information mixed with the relevant answer.
+
 
 ---
 
@@ -58,9 +74,17 @@
 
 **Embedding model:**
 
+I will use **all-MiniLM-L6-v2** from the Sentence Transformers library. This model is lightweight, fast, and commonly used for semantic search tasks. It generates embeddings that capture the meaning of text, allowing the system to retrieve relevant information even when the query uses different wording than the source documents.
+
 **Top-k:**
 
+I will retrieve the **top 5 most relevant chunks (top-k = 5)** for each query. Retrieving five chunks provides enough context to answer most housing-related questions while reducing the amount of irrelevant information passed to the language model.
+
 **Production tradeoff reflection:**
+
+If I were deploying this system for real users and cost was not a constraint, I would evaluate larger embedding models that provide stronger semantic understanding, better multilingual support, and improved performance on domain-specific queries. Larger models may retrieve more relevant chunks and better understand complex questions, especially from international students who may search using different terminology.
+
+However, larger models require more computational resources, increased memory usage, and higher latency. The all-MiniLM-L6-v2 model offers a good balance between retrieval quality, speed, and efficiency for a student housing knowledge base. For a production system, I would compare retrieval accuracy, response time, context length support, and multilingual capabilities before selecting a more advanced embedding model.
 
 ---
 
