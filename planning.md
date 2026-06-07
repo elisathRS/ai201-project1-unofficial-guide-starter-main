@@ -133,6 +133,42 @@ However, larger models require more computational resources, increased memory us
      You can use ASCII art, a Mermaid diagram, or embed a sketch as an image.
      You'll use this diagram as context when prompting AI tools to implement each stage. -->
 
+```
+  ┌─────────────────────┐
+  │ 10 web sources       │  fetch_sources.py — requests + browser User-Agent
+  │ (MDC pages, listings,│  (apartments.com→Rent.com on 403; Reddit via old.reddit)
+  │  Reddit thread)      │
+  └──────────┬───────────┘
+             │ raw HTML  ->  documents/raw/*.html
+             ▼
+  ┌─────────────────────┐
+  │ 1. Ingestion +       │  ingest.py — BeautifulSoup clean (strip nav/footer/ads/
+  │    Chunking          │  cookie/CMS metadata) -> 500-char chunks, 100 overlap
+  └──────────┬───────────┘
+             │ documents/chunks.json  {id, source, chunk_index, text}
+             ▼
+  ┌─────────────────────┐
+  │ 2. Embedding +       │  embed.py — sentence-transformers all-MiniLM-L6-v2
+  │    Vector Store      │  -> ChromaDB (persistent, cosine), metadata per chunk
+  └──────────┬───────────┘
+             │ chroma_db/
+             ▼
+  ┌─────────────────────┐
+  │ 3. Retrieval         │  retrieve.py — embed query, top-k = 7 by cosine
+  └──────────┬───────────┘
+             │ top-k chunks + source metadata
+             ▼
+  ┌─────────────────────┐
+  │ 4. Generation        │  generate.py — Groq llama-3.3-70b-versatile, grounded
+  │                      │  prompt; programmatic source attribution
+  └──────────┬───────────┘
+             │ answer + sources
+             ▼
+  ┌─────────────────────┐
+  │ 5. Interface         │  app.py — Gradio (question -> Answer + "Retrieved from")
+  └─────────────────────┘
+```
+
 ---
 
 ## AI Tool Plan

@@ -172,13 +172,20 @@ separate "Retrieved from" box). When the answer is the "not enough information" 
      Be honest — a partially accurate or inaccurate result that you explain well is more
      valuable than a suspiciously perfect result. -->
 
+Run with `python app.py` (or `python generate.py "<question>"`). Responses below are the
+actual system outputs.
+
 | # | Question | Expected answer | System response (summarized) | Retrieval quality | Response accuracy |
 |---|----------|-----------------|------------------------------|-------------------|-------------------|
-| 1 | | | | | |
-| 2 | | | | | |
-| 3 | | | | | |
-| 4 | | | | | |
-| 5 | | | | | |
+| 1 | Does Miami Dade College provide student dormitories? | No — MDC does not provide traditional student housing; students arrange off-campus housing independently. | "No… Miami Dade College does not provide student housing facilities for local or international students." (sources: Student.com, Room Choice, CollegeFind, MDC International Housing) | Partially relevant (the canonical MDC FAQ chunk did **not** rank in top-k; a redundant source carried the fact) | **Accurate** |
+| 2 | What websites can students use to search for apartments near MDC? | Apartments.com, Student.com, Casita, CampusRent, Room Choice, and similar housing platforms. | Lists CampusRent.com, Craigslist Miami, ApartmentGuide, ForRent.com, Rent.com, ApartmentFinder, ForRentUniversity.com, Apartments.com (via CollegeFind), Student.com. (sources: CampusRent, CollegeFind, Student.com) | Relevant | **Accurate** |
+| 3 | What housing resources are available for international students? | MDC provides housing resource information and referrals through its International Student Services pages. | Lists the housing websites the MDC International Students page recommends (Apartment List, Hotpads, Zillow, RentCafé, etc.) and notes Student.com houses international students. | Partially relevant | **Partially accurate** — surfaces the *website* resources but not the "contact International Student Services" referral framing of the expected answer |
+| 4 | What are common housing options for MDC students? | Apartments, shared apartments, private rooms, roommate arrangements, student-oriented housing. | "Private Let (private/shared living), Co-Living / serviced apartments, Homestays (stay with a local family), fully equipped apartments near MDC campuses." (sources: Casita, Student.com, MDC FAQ) | Relevant | **Accurate** |
+| 5 | Why do many students look for roommates? | To reduce housing costs and make living in Miami more affordable. | "To split a 3–4 bedroom so each person's share of the rent drops by ~30–40%." (sources: CollegeFind, CampusRent) | Relevant | **Accurate** |
+
+**Summary:** 4 of 5 accurate, 1 partially accurate. All 5 answers were grounded in retrieved
+documents with programmatic source attribution; the off-domain control question ("What meal
+plans does MDC offer?") correctly returned the "I don't have enough information" fallback.
 
 **Retrieval quality:** Relevant / Partially relevant / Off-target  
 **Response accuracy:** Accurate / Partially accurate / Inaccurate
@@ -198,13 +205,33 @@ separate "Retrieved from" box). When the answer is the "not enough information" 
      "The embedding model treated the professor's nickname as out-of-vocabulary and returned
      results from an unrelated review" is an explanation. -->
 
-**Question that failed:**
+**Question that failed:** "Does Miami Dade College provide student dormitories?" (Q1) — a
+**retrieval-stage** failure that the generation stage happened to mask.
 
-**What the system returned:**
+**What the system returned:** The final answer was actually correct ("No, MDC does not provide
+student housing facilities"). But the failure is in *retrieval*: the single most authoritative
+chunk — the MDC FAQ that states "As a college, Miami Dade does not provide or supervise housing
+facilities" — **did not appear in the top-k results at all**. It ranked **#13** by cosine
+distance. The answer was salvaged only because a *secondary* source (the MDC International
+Student Housing page) redundantly states the same fact and did rank in the top-k.
 
-**Root cause (tied to a specific pipeline stage):**
+**Root cause (tied to a specific pipeline stage):** This is an **embedding / retrieval**
+failure caused by a vocabulary mismatch. The query uses the word "**dormitories**," which
+appears **nowhere** in the corpus — every source says "housing," "student housing," or "housing
+facilities." The all-MiniLM-L6-v2 embedding does not map "dormitories" close enough to "housing
+facilities," so the query vector landed nearer to apartment-listing chunks dense with "student
+housing." The negation in the FAQ ("does *not* provide") compounds this, since sentence
+embeddings represent topic well but handle negation weakly. So the chunk that most directly
+answers the question was pushed out of the retrieval window.
 
-**What you would change to fix it:**
+**What you would change to fix it:** (1) **Query expansion / synonym mapping** at retrieval time
+— expand "dormitory/dorm/residence hall" → "student housing, housing facilities" before
+embedding the query. (2) A **larger embedding model** with stronger synonym coverage (see
+Embedding Model tradeoffs). (3) Two interventions I already applied that *narrowed* the gap:
+de-spamming the listing pages' title/nav chunks (which were falsely out-ranking real content)
+and raising **top-k from 5 to 7**. These made the system answer Q1 correctly via a secondary
+source, but the canonical FAQ chunk still isn't retrieved for this exact wording — an honest
+residual limitation.
 
 ---
 
@@ -213,9 +240,24 @@ separate "Retrieved from" box). When the answer is the "not enough information" 
 <!-- Reflect on how planning.md shaped your implementation.
      Answer both questions with at least 2–3 sentences each. -->
 
-**One way the spec helped you during implementation:**
+**One way the spec helped you during implementation:** Writing the Chunking Strategy and
+Retrieval Approach sections *before* coding gave me concrete, testable targets to build and
+verify against. Because the spec fixed "500-character chunks, 100-character overlap" and
+"all-MiniLM-L6-v2, top-k = 5," I could write assertions that checked every chunk was ≤ 500
+characters with ~100 overlap, and could tell immediately when the chunker drifted. The spec
+also caught a real bug: it called for removing nav/footer content, and when I inspected the
+cleaned output I saw a regex strip wasn't actually doing that — so I switched to BeautifulSoup.
+Without the spec as a checklist, that cleaning gap would have silently degraded retrieval.
 
-**One way your implementation diverged from the spec, and why:**
+**One way your implementation diverged from the spec, and why:** The spec listed
+**apartments.com** as source #3 and set **top-k = 5**; I changed both. apartments.com returns
+HTTP 403 to automated requests (Cloudflare), so I swapped it for **Rent.com**, which serves
+real listings on the same "apartments near MDC" subtopic. And after seeing real retrieval
+results, I raised **top-k from 5 to 7**: a borderline-but-correct chunk (the MDC FAQ "no
+housing" answer) kept landing just outside the top 5, so widening the window improved recall
+without adding much noise. Both divergences were driven by observed behavior the plan couldn't
+anticipate — exactly the kind of update the planning template says to make during
+implementation.
 
 ---
 
@@ -230,14 +272,43 @@ separate "Retrieved from" box). When the answer is the "not enough information" 
      chunk_text(). It returned a function using a fixed character split. I overrode the
      chunk size from 500 to 200 because my documents are short reviews, not long guides." -->
 
-**Instance 1**
+I used **Claude (Claude Code)** throughout, always prompting it with the relevant section of
+`planning.md` and then reviewing and correcting its output.
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+**Instance 1 — Ingestion and chunking**
 
-**Instance 2**
+- *What I gave the AI:* my Documents section (10 web/HTML sources), my Chunking Strategy
+  section (500-char chunks, 100-char overlap, preprocessing rules), and the pipeline stages.
+- *What it produced:* a first `ingest.py` that cleaned HTML with a regex tag-strip and chunked
+  by fixed character windows.
+- *What I changed or overrode:* The regex strip did not remove nav/footer text (it deleted tags
+  but kept their content), violating my preprocessing spec, so I directed it to use
+  BeautifulSoup instead. Inspecting the output then exposed a worse bug: a substring class match
+  (`"sidebar"`) was deleting the `content-sidebar-wrap` layout wrapper — and once — the whole
+  MDC FAQ answer (31 KB → 30 characters). I had it switch to whole-token matching and never
+  decompose structural tags, then add word-boundary-aligned chunk starts.
 
-- *What I gave the AI:*
-- *What it produced:*
-- *What I changed or overrode:*
+**Instance 2 — Embedding, retrieval, and the top-k decision**
+
+- *What I gave the AI:* my Retrieval Approach section (all-MiniLM-L6-v2, top-k = 5, ChromaDB)
+  and the chunk schema from ingestion.
+- *What it produced:* `embed.py` and `retrieve.py` using a persistent ChromaDB collection with
+  cosine similarity and `{source, chunk_index}` metadata.
+- *What I changed or overrode:* After running my 5 eval questions I saw the MDC FAQ chunk
+  ranking #13 for the "dormitories" query. I directed the AI *not* to fake a fix by injecting
+  synonyms into the chunk, but instead to (a) de-spam the listing pages' title chunks that were
+  falsely out-ranking real content and (b) raise top-k to 7. I also overrode its initial
+  `upsert` indexing to a full collection reset, because re-ingesting changes chunk counts and
+  `upsert` would leave stale chunk IDs in the store.
+
+**Instance 3 — Grounded generation**
+
+- *What I gave the AI:* my grounding requirement (answer from retrieved context only, with
+  source attribution), the desired output format, and a request for a Gradio UI.
+- *What it produced:* `generate.py` and `app.py` wiring Groq `llama-3.3-70b-versatile` to the
+  retriever.
+- *What I changed or overrode:* I insisted attribution be **programmatic** rather than asking
+  the model to cite sources in its text — so `generate.py` builds the source list from the
+  retrieved chunks' metadata and attaches it in code, and omits sources entirely when the answer
+  is the "not enough information" fallback. I also added a code-level gate that returns the
+  fallback without calling the LLM when retrieval is empty.
