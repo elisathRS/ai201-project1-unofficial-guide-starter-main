@@ -194,3 +194,20 @@ However, larger models require more computational resources, increased memory us
   and for k-tuning.
 
 **Milestone 5 — Generation and interface:**
+
+- **Tool:** Claude (Claude Code).
+- **Input I gave it:** my grounding requirement (answer from retrieved context only, with
+  source attribution), the desired output format (answer + source list), the Groq model
+  (llama-3.3-70b-versatile via the groq SDK + GROQ_API_KEY), and a request for a Gradio UI.
+- **What it produced:** `generate.py` (grounded prompt + Groq call + programmatic source
+  attribution) and `app.py` (Gradio interface with the 5 eval questions as examples).
+- **How grounding is ENFORCED (not just suggested):** the system prompt forbids outside
+  knowledge and pins the exact fallback string "I don't have enough information on that.";
+  the prompt contains only the numbered retrieved chunks; and a code gate returns the
+  fallback without calling the LLM when retrieval is empty.
+- **How attribution is GUARANTEED:** the Sources list is built in code from the metadata of
+  the retrieved chunks, not parsed from the model's text — and is omitted when the answer is
+  the "not enough information" fallback.
+- **How I verified:** ran the eval questions (correct, grounded, sourced answers), confirmed
+  an off-domain query ("capital of France") returns the fallback with no sources, and
+  confirmed the Gradio app launches and serves HTTP 200.

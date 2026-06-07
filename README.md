@@ -54,12 +54,23 @@ I chose this domain because Miami Dade College does not provide traditional stud
 
 **Overlap:** 100 characters
 
-**Preprocessing:**
+**Preprocessing** (implemented in `documents/ingest.py`, using BeautifulSoup):
 
-- Extract text from each webpage.
-- Remove HTML tags, navigation menus, advertisements, and footer content.
-- Normalize whitespace and remove duplicate blank lines.
-- Preserve paragraph breaks when possible before chunking.
+- Parse each saved page and extract text from `<body>` only (the `<head><title>`
+  "Page Name | Site Name" string is title-spam that otherwise out-ranks real content).
+- Remove HTML tags and whole noise sections: `<script>`, `<style>`, `<nav>`, `<aside>`,
+  `<form>`, `<button>`, plus `<header>`/`<footer>` *unless* they are an article's own title
+  header (`<header class="entry-header">` inside `<article>` holds the post title).
+- Remove boilerplate widgets by class/id token match: cookie/consent banners, ads,
+  share/social buttons, comment widgets, newsletter signups, breadcrumbs, modals, and known
+  site-chrome ids (e.g. old.reddit's `#sr-header-area`).
+- Drop UI-chrome and CMS-metadata lines ("Read more", "Skip to…", copyright, "Last Updated",
+  "Tags", "Posted in") and globally de-duplicate repeated short, digit-free nav/site-name
+  lines (the digit-free guard protects repeated prices and zip codes in listing tables).
+- Decode all HTML entities (`&amp;`, `&nbsp;`, `&#39;`), normalize whitespace, and collapse
+  duplicate blank lines while preserving paragraph breaks.
+- Chunk with a sliding character window, snapping both boundaries to whitespace so chunks
+  neither start nor end mid-word.
 
 **Why these choices fit your documents:**
 
@@ -69,12 +80,12 @@ I use a 100-character overlap because important information may span chunk bound
 
 If chunks were significantly smaller, important information could be split apart and retrieved without sufficient context. If chunks were much larger, retrieval could return irrelevant information mixed with the relevant answer.
 
-**Final chunk count:** 182 chunks across the 9 documents fetched so far (each ≤ 500
-characters with ~100-character overlap). This will increase once the 2 bot-blocked sources
-(apartments.com, which returns HTTP 403, and the Reddit thread, which serves a JS-challenge
-page) are saved manually into documents/raw/ and re-ingested. The count sits comfortably in
-the healthy 50–2,000 range: large enough that each chunk carries meaning, small enough that
-specific queries can match precisely.
+**Final chunk count:** **186 chunks across all 10 documents** (each ≤ 500 characters with
+~100-character overlap). This sits comfortably in the healthy 50–2,000 range: large enough
+that each chunk carries meaning, small enough that specific queries can match precisely. Two
+of the ten sources blocked automated fetching — apartments.com returns HTTP 403, so it was
+**swapped for Rent.com** (same "apartment listings near MDC" subtopic); and the Reddit thread
+served a JS-challenge page on www.reddit.com, so it is fetched via **old.reddit.com** instead.
 
 ---
 
@@ -86,9 +97,30 @@ specific queries can match precisely.
      Consider: context length limits, multilingual support, accuracy on domain-specific text,
      latency, and local vs. API-hosted. -->
 
-**Model used:**
+**Model used:** **all-MiniLM-L6-v2** via `sentence-transformers`, loaded locally with
+`SentenceTransformer("all-MiniLM-L6-v2")` (see `embed.py`). Embeddings are normalized to unit
+length and stored in a persistent **ChromaDB** collection configured for **cosine** similarity
+(`metadata={"hnsw:space": "cosine"}`); each record carries `{source, chunk_index}` metadata for
+attribution. I chose this model because it runs locally with no API key and no rate limits,
+is fast (all 186 chunks embed in ~1 second on a laptop), and produces 384-dimensional vectors
+that capture enough semantic meaning for short housing guides, FAQ answers, and listings.
+Retrieval uses **top-k = 7** (tuned up from an initial k = 5 — see Failure Case Analysis).
 
-**Production tradeoff reflection:**
+**Production tradeoff reflection:** If I were deploying this for real users and cost were not
+a constraint, I would compare larger, higher-accuracy embedding models (e.g. `bge-large-en`,
+`text-embedding-3-large`, or a multilingual model like `paraphrase-multilingual-mpnet`). The
+tradeoffs I would weigh:
+
+- **Domain/synonym accuracy:** all-MiniLM-L6-v2 missed the "dormitories" → "housing
+  facilities" link (see Failure Case). A larger model with stronger semantic coverage would
+  likely bridge that vocabulary gap.
+- **Multilingual support:** many MDC students are international and Spanish-speaking; a
+  multilingual model would let them query in Spanish against English documents.
+- **Context length:** MiniLM truncates at 256 tokens — fine for my 500-character chunks, but a
+  longer-context model would let me use bigger chunks without truncation.
+- **Latency / hosting:** larger local models are slower and need more memory; API-hosted
+  models add per-call cost and network latency but offload compute. For a free student
+  project, MiniLM's local speed-vs-quality balance is the right call.
 
 ---
 
@@ -101,9 +133,36 @@ specific queries can match precisely.
      Do not just say "I told it to use the documents" — show the actual instruction or explain
      the mechanism. -->
 
-**System prompt grounding instruction:**
+Generation uses **Groq `llama-3.3-70b-versatile`** at temperature 0 (see `generate.py`).
+Grounding is *enforced*, not merely suggested, through three mechanisms:
 
-**How source attribution is surfaced in the response:**
+**System prompt grounding instruction** (verbatim from `generate.py`):
+
+> You are a helpful assistant that answers questions about off-campus housing for Miami Dade
+> College (MDC) students. Follow these rules with no exceptions:
+> 1. Answer using ONLY the information in the CONTEXT documents provided in the user message.
+>    Do not use any outside or prior knowledge.
+> 2. Do not guess, infer, or invent facts, prices, names, or sources. Every claim in your
+>    answer must be supported by the context.
+> 3. If the context does not contain enough information to answer the question, reply with
+>    EXACTLY this sentence and nothing else: "I don't have enough information on that."
+> 4. Keep the answer concise and directly focused on the question.
+
+**Structural choices that reinforce grounding:**
+
+- The prompt contains *only* the numbered, source-labelled retrieved chunks — the model
+  literally has nothing else to draw from.
+- Temperature 0 minimizes improvisation.
+- A **code-level gate**: if retrieval returns zero chunks, the system returns the
+  "I don't have enough information on that." fallback *without ever calling the LLM*, so it
+  cannot answer from training knowledge.
+
+**How source attribution is surfaced in the response:** Attribution is **programmatic, not
+LLM-trusted**. After generation, `unique_sources()` builds the source list from the
+`source` metadata of the chunks that were actually retrieved — it does *not* parse citations
+out of the model's text. The list is rendered under each answer (the Gradio UI shows it in a
+separate "Retrieved from" box). When the answer is the "not enough information" fallback, the
+`grounded` flag is `False` and **no sources are attached** (nothing supported a non-answer).
 
 ---
 

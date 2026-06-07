@@ -19,5 +19,8 @@ chroma/
 # Generated ingestion output (regenerate with: python documents/ingest.py)
 documents/chunks.json
 
+# Gradio cache
+.gradio/
+
 # macOS
 .DS_Store
