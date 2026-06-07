@@ -25,7 +25,7 @@ I chose this domain because Miami Dade College does not provide traditional stud
 |---|--------|------|-----------------|
 | 1 | MDC Housing Resources for International Students | Official College Resource | https://www.mdc.edu/internationalstudents/resources/housing.aspx |
 | 2 | MDC FAQ: Does MDC Have Student Housing? | Official FAQ | https://faq.mdc.edu/knowledgebase/does-mdc-have-student-housing/ |
-| 3 | Apartments.com – Off-Campus Housing Near MDC Wolfson Campus | Apartment Listing Guide | https://www.apartments.com/local-guide/off-campus-housing/fl/miami/miami-dade-college-wolfson-campus/ |
+| 3 | Rent.com – Apartments for Rent in Miami, FL | Apartment Listing Guide | https://www.rent.com/florida/miami-apartments |
 | 4 | Fllat – Off-Campus Housing Near Miami Dade College | Student Housing Platform | https://fllat.com/miami/off-campus-housing-near-miami-dade-college |
 | 5 | CollegeFind – Apartments Near Miami Dade College | Apartment Search Guide | https://www.college-find.com/apartments/miami-dade-college |
 | 6 | Student.com – Miami Dade College Housing | Student Accommodation Directory | https://www.student.com/us/miami/u/miami-dade-college |
@@ -107,8 +107,6 @@ However, larger models require more computational resources, increased memory us
 
 ## Anticipated Challenges
 
-## Anticipated Challenges
-
 1. **Inconsistent information**  
    Official sources, housing websites, and Reddit discussions may provide conflicting or outdated information.
 
@@ -146,6 +144,35 @@ However, larger models require more computational resources, increased memory us
      with my specified chunk size and overlap" is a plan. -->
 
 **Milestone 3 — Ingestion and chunking:**
+
+- **Tool:** Claude (Claude Code).
+- **Input I gave it:** my Documents section (10 web/HTML sources + a Reddit thread), my
+  Chunking Strategy section (500-char chunks, 100-char overlap, preprocessing rules:
+  strip HTML/nav/ads/footer, normalize whitespace, preserve paragraph breaks), and the
+  pipeline stages (Ingestion → Chunking → Embedding/ChromaDB → Retrieval → Generation).
+- **What I expected:** a `documents/ingest.py` that loads local source files, cleans them,
+  and produces overlapping chunks matching my exact size/overlap, with per-document and
+  total chunk counts and a `chunks.json` output for the embedding stage.
+- **How I verified it matches the spec:** ran a test confirming max chunk length 495 ≤ 500
+  and exactly 100-char overlap between consecutive chunks; confirmed the HTML cleaner
+  removes `<nav>`, ad/cookie banners, and `<footer>` while keeping real paragraphs.
+- **What it produced:** two scripts — `fetch_sources.py` (downloads each URL's raw HTML
+  into documents/raw/ in a consistent format before any cleaning) and `ingest.py`
+  (cleans + chunks, with a `--inspect` mode that prints one cleaned document).
+- **What I changed/overrode (three corrections after reviewing output):**
+  1. The first cut used a regex HTML strip that did *not* remove nav/footer, so I switched
+     to BeautifulSoup (tag-aware) and added it + `requests` to requirements.txt, keeping the
+     regex as a fallback.
+  2. Inspecting the cleaned MDC FAQ showed 31 KB → 30 chars: my noise filter matched class
+     names by *substring*, so `"sidebar"`/`"header"` hit the `content-sidebar-wrap` layout
+     wrapper (and the `<body>` class) and deleted the whole answer. I fixed it to match whole
+     class *tokens* and to never decompose structural tags (html/body/main/article/section).
+  3. A leftover-junk scan still found `Skip to`, `©`, and `Privacy Policy` footer text as
+     plain lines, so I added a line-level boilerplate filter.
+- **How I verified:** all 187 chunks are ≤ 500 chars with ~100-char overlap; the cleaned
+  FAQ chunk contains the gold answer to test question #1; a scan confirms zero HTML entities
+  and no nav/footer text across all 9 fetched documents (2 sources — apartments.com 403 and
+  Reddit's challenge page — must be saved manually into documents/raw/).
 
 **Milestone 4 — Embedding and retrieval:**
 

@@ -16,5 +16,8 @@ env/
 chroma_db/
 chroma/
 
+# Generated ingestion output (regenerate with: python documents/ingest.py)
+documents/chunks.json
+
 # macOS
 .DS_Store
