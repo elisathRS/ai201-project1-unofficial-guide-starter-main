@@ -87,6 +87,28 @@ of the ten sources blocked automated fetching — apartments.com returns HTTP 40
 **swapped for Rent.com** (same "apartment listings near MDC" subtopic); and the Reddit thread
 served a JS-challenge page on www.reddit.com, so it is fetched via **old.reddit.com** instead.
 
+### Sample chunks (5, with source document)
+
+1. **`02_mdc_faq_housing.html` #0** — "Does MDC have student housing? As a college, Miami
+   Dade does not provide or supervise housing facilities. Out-of-town students should arrive
+   approximately two to four weeks in advance of registration in order to locate suitable
+   housing. Two or three months' advance payment is generally required for rental housing."
+2. **`09_casita.html` #0** — "Best Miami Dade College (MDC) Off-Campus Housings … Accommodation
+   Type: Private Let — Private or shared living in a house or apartment; Young or Working
+   Professional Housing — Co-Living, serviced apartments, hotels; Homestays — Stay with a Local
+   Family for an affordable fee."
+3. **`06_student_com.html` #72** — "…If you book the Entire Place, you'll get a fully
+   self-contained apartment just for yourself … Do you offer housing for international students
+   as well? Yes, absolutely! We offer student housing to all full-time students, whether
+   international or local."
+4. **`08_campusrent.html` #39** — "…there are a number of other websites where you can find
+   apartment rentals: Craigslist Miami, ApartmentGuide, ForRent.com, Rent.com, ApartmentFinder
+   and ForRentUniversity.com. CampusRent.com is not affiliated with…"
+5. **`05_collegefind.html` #20** — "…The neighborhoods immediately around campus tend to be
+   well-lit and student-friendly. Always tour in person, check entry security, and read tenant
+   reviews before signing a lease. How far are apartments from Miami Dade College's campus? Most
+   student apartments are 0.3–1.5 miles away — a 5–20 min [walk/commute]."
+
 ---
 
 ## Embedding Model
@@ -121,6 +143,51 @@ tradeoffs I would weigh:
 - **Latency / hosting:** larger local models are slower and need more memory; API-hosted
   models add per-call cost and network latency but offload compute. For a free student
   project, MiniLM's local speed-vs-quality balance is the right call.
+
+---
+
+## Retrieval Test Examples
+
+Three queries run through `retrieve.py` (top-k shown; **distance = cosine distance, lower =
+more relevant**). These show the raw retrieved *chunks* before generation.
+
+**Example 1 — "What websites can students use to search for apartments near MDC?"**
+
+| Rank | Distance | Source chunk | Snippet |
+|---|---|---|---|
+| 1 | 0.408 | `08_campusrent.html #39` | "…a number of other websites where you can find apartment rentals: Craigslist Miami, ApartmentGuide, ForRent.com, Rent.com, ApartmentFinder…" |
+| 2 | 0.439 | `08_campusrent.html #44` | "…Search Off Campus Housing Apartments…" |
+| 3 | 0.455 | `05_collegefind.html #11` | "…a solid range of options for all budgets. Sample apartment types near…" |
+
+*Why these are relevant:* the #1 chunk literally enumerates apartment-search websites — a
+direct, on-topic answer to the query. It comes from CampusRent's "other websites" paragraph,
+exactly the kind of resource list the question asks for. Distance 0.408 is well under the 0.5
+weak-match threshold.
+
+**Example 2 — "What housing resources are available for international students?"**
+
+| Rank | Distance | Source chunk | Snippet |
+|---|---|---|---|
+| 1 | 0.313 | `06_student_com.html #72` | "…Do you offer housing for international students as well? Yes, absolutely! We offer student housing to all full-time students…" |
+| 2 | 0.334 | `01_mdc_intl_housing.html #2` | "…International students must bring sufficient [funds] … to arrange accommodations." |
+| 3 | 0.386 | `06_student_com.html #35` | "…your own bedroom, bathroom and a kitchenette…" |
+
+*Why these are relevant:* the #1 chunk directly addresses housing for international students,
+and the #2 chunk is the **official MDC International Student Housing** page — the most
+authoritative source for this question. Both are below 0.34 distance (strong matches), and
+the two sources corroborate each other.
+
+**Example 3 — "What are common housing options for MDC students?"**
+
+| Rank | Distance | Source chunk | Snippet |
+|---|---|---|---|
+| 1 | 0.325 | `09_casita.html #0` | "…Accommodation Type: Private Let, Co-Living/serviced apartments, Homestays…" |
+| 2 | 0.344 | `06_student_com.html #1` | "…About Miami Dade College Housing…" |
+| 3 | 0.361 | `02_mdc_faq_housing.html #0` | "Does MDC have student housing? … Miami Dade does not provide or supervise housing facilities…" |
+
+*Why these are relevant:* the #1 chunk lists the actual housing-option *types* (Private Let,
+Co-Living, Homestays), and the #3 chunk supplies essential grounding context — that MDC
+itself provides no housing, which is *why* these off-campus options matter.
 
 ---
 
@@ -163,6 +230,78 @@ LLM-trusted**. After generation, `unique_sources()` builds the source list from 
 out of the model's text. The list is rendered under each answer (the Gradio UI shows it in a
 separate "Retrieved from" box). When the answer is the "not enough information" fallback, the
 `grounded` flag is `False` and **no sources are attached** (nothing supported a non-answer).
+
+### Example responses with source attribution (actual output)
+
+**Example A — grounded answer with sources:**
+
+> **Q:** What are common housing options for MDC students?
+>
+> **A:** According to the context, common housing options for MDC students include:
+> 1. Private Let (private or shared living in a house or apartment)
+> 2. Young or Working Professional Housing (Co-Living, serviced apartments, hotels, etc.)
+> 3. Homestays (staying with a local family for an affordable fee)
+> 4. Fully equipped apartments near MDC campuses, such as Kendall Campus.
+>
+> **Sources:**
+> - Casita — Student Accommodation Near MDC
+> - Student.com — MDC Housing
+> - MDC FAQ — Does MDC Have Student Housing?
+
+**Example B — grounded answer with sources:**
+
+> **Q:** Why do many students look for roommates?
+>
+> **A:** To split a 3–4 bedroom so each person's share of the rent drops by ~30–40%.
+>
+> **Sources:**
+> - CollegeFind — Apartments Near MDC
+> - CampusRent — MDC Apartments
+
+**Example C — out-of-scope query (refusal, no sources attached):**
+
+> **Q:** What meal plans or dining halls does Miami Dade College offer?
+>
+> **A:** I don't have enough information on that.
+
+The corpus covers *housing only*, so even though housing chunks were retrieved, none answered
+the dining question — and the system declined instead of fabricating a plausible answer from
+the model's training knowledge.
+
+---
+
+## Query Interface
+
+The interface is a **Gradio web app** (`app.py`, built with `gr.Blocks`). Run `python app.py`
+and open http://localhost:7860.
+
+**Input field:**
+- **"Your question"** — a multi-line textbox. Submit by clicking the **"Ask"** button *or*
+  pressing Enter. Five example questions are provided as one-click buttons.
+
+**Output fields:**
+- **"Answer"** — the grounded answer text from Groq `llama-3.3-70b-versatile`.
+- **"Retrieved from"** — the programmatically-built list of source documents the answer drew
+  from (empty when the system declines to answer).
+
+**Sample interaction transcript:**
+
+```
+Your question:  What are common housing options for MDC students?
+[Ask]
+
+Answer:
+  According to the context, common housing options for MDC students include:
+  1. Private Let (private or shared living in a house or apartment)
+  2. Young or Working Professional Housing (Co-Living, serviced apartments, hotels, etc.)
+  3. Homestays (staying with a local family for an affordable fee)
+  4. Fully equipped apartments near MDC campuses, such as Kendall Campus.
+
+Retrieved from:
+  • Casita — Student Accommodation Near MDC
+  • Student.com — MDC Housing
+  • MDC FAQ — Does MDC Have Student Housing?
+```
 
 ---
 

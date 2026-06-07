@@ -32,7 +32,7 @@ I chose this domain because Miami Dade College does not provide traditional stud
 | 7 | Room Choice – Housing Near Miami Dade College | Student Housing Directory | https://www.roomchoice.com/schools/fl/miami-dade-college/ |
 | 8 | CampusRent – Miami Dade College Apartments | Apartment Listings | https://www.campusrent.com/miami-dade-college-apartments.cfm |
 | 9 | Casita – Student Accommodation Near MDC | Student Housing Platform | https://www.casita.com/student-accommodation/usa/miami/miami-dade-college |
-| 10 | Housing and Apartment Recommendation Discussions | Reddit Forum Discussions | r/MiamiDadeCollege (housing-related threads and posts) |
+| 10 | Looking for Student Housing Options/Roommates (r/Miami) | Reddit Forum Discussion | https://old.reddit.com/r/Miami/comments/ho17nc/looking_for_student_housing_optionsroommates/ |
 
 ---
 
