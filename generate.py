@@ -66,7 +66,11 @@ SYSTEM_PROMPT = (
     f"3. If the context does not contain enough information to answer the "
     f"question, reply with EXACTLY this sentence and nothing else: "
     f"\"{INSUFFICIENT}\"\n"
-    "4. Keep the answer concise and directly focused on the question."
+    "4. Cite your source INLINE: after the fact(s) you state, name the source in "
+    "parentheses using the exact label shown after 'source:' in the context — "
+    "for example, \"(source: MDC FAQ — Does MDC Have Student Housing?)\". Do not "
+    "use the bracket numbers like [1]; use the readable source label.\n"
+    "5. Keep the answer concise and directly focused on the question."
 )
 
 

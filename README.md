@@ -224,35 +224,41 @@ Grounding is *enforced*, not merely suggested, through three mechanisms:
   "I don't have enough information on that." fallback *without ever calling the LLM*, so it
   cannot answer from training knowledge.
 
-**How source attribution is surfaced in the response:** Attribution is **programmatic, not
-LLM-trusted**. After generation, `unique_sources()` builds the source list from the
-`source` metadata of the chunks that were actually retrieved — it does *not* parse citations
-out of the model's text. The list is rendered under each answer (the Gradio UI shows it in a
-separate "Retrieved from" box). When the answer is the "not enough information" fallback, the
-`grounded` flag is `False` and **no sources are attached** (nothing supported a non-answer).
+**How source attribution is surfaced in the response:** Two ways, working together.
+(1) **Inline** — the system prompt instructs the model to cite the source label in parentheses
+right after each fact, e.g. `(source: MDC FAQ — Does MDC Have Student Housing?)`, using the
+labels printed in the context. (2) **Programmatic list (the guarantee)** — after generation,
+`unique_sources()` builds a "Sources" list from the `source` metadata of the chunks that were
+actually retrieved; it does *not* parse the model's text, so attribution is correct even if the
+model's inline phrasing is imperfect. The Gradio UI shows this list in a separate "Retrieved
+from" box. When the answer is the "not enough information" fallback, the `grounded` flag is
+`False` and **no sources are attached** (nothing supported a non-answer).
 
 ### Example responses with source attribution (actual output)
 
-**Example A — grounded answer with sources:**
+Source attribution is surfaced **twice**: cited **inline** within the answer text using the
+exact source label (e.g. `(source: Casita — Student Accommodation Near MDC)`), and again in a
+guaranteed, programmatically-built **Sources** list below.
+
+**Example A — grounded answer with inline + listed sources:**
 
 > **Q:** What are common housing options for MDC students?
 >
-> **A:** According to the context, common housing options for MDC students include:
-> 1. Private Let (private or shared living in a house or apartment)
-> 2. Young or Working Professional Housing (Co-Living, serviced apartments, hotels, etc.)
-> 3. Homestays (staying with a local family for an affordable fee)
-> 4. Fully equipped apartments near MDC campuses, such as Kendall Campus.
+> **A:** Common housing options for MDC students include Private Let, Young or Working
+> Professional Housing, and Homestays (source: Casita — Student Accommodation Near MDC), as
+> well as fully equipped apartments and rooms for rent (source: Student.com — MDC Housing).
 >
 > **Sources:**
 > - Casita — Student Accommodation Near MDC
 > - Student.com — MDC Housing
 > - MDC FAQ — Does MDC Have Student Housing?
 
-**Example B — grounded answer with sources:**
+**Example B — grounded answer with inline + listed sources:**
 
 > **Q:** Why do many students look for roommates?
 >
-> **A:** To split a 3–4 bedroom so each person's share of the rent drops by ~30–40%.
+> **A:** Many students look for roommates because splitting a 3–4 bedroom apartment can drop
+> each person's share of the rent by 30–40% (source: CollegeFind — Apartments Near MDC).
 >
 > **Sources:**
 > - CollegeFind — Apartments Near MDC
@@ -291,11 +297,10 @@ Your question:  What are common housing options for MDC students?
 [Ask]
 
 Answer:
-  According to the context, common housing options for MDC students include:
-  1. Private Let (private or shared living in a house or apartment)
-  2. Young or Working Professional Housing (Co-Living, serviced apartments, hotels, etc.)
-  3. Homestays (staying with a local family for an affordable fee)
-  4. Fully equipped apartments near MDC campuses, such as Kendall Campus.
+  Common housing options for MDC students include Private Let, Young or Working
+  Professional Housing, and Homestays (source: Casita — Student Accommodation Near
+  MDC), as well as fully equipped apartments and rooms for rent (source:
+  Student.com — MDC Housing).
 
 Retrieved from:
   • Casita — Student Accommodation Near MDC
