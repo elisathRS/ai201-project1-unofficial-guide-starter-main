@@ -32,6 +32,7 @@ import html
 import json
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
@@ -75,9 +76,14 @@ class Chunk:
 
 # --- Cleaning ----------------------------------------------------------------
 
-# Tags whose entire contents are noise for a housing knowledge base.
-_NOISE_TAGS = ["script", "style", "nav", "footer", "header", "aside", "form",
+# Tags whose entire contents are always noise for a housing knowledge base.
+_NOISE_TAGS = ["script", "style", "nav", "aside", "form",
                "button", "noscript", "svg", "iframe"]
+
+# <header>/<footer> are usually site chrome, BUT a CMS article's own title and
+# byline live in <header class="entry-header"> inside <article>. Remove these
+# only when they are NOT inside an <article>, so article titles survive.
+_SECTION_NOISE_TAGS = ["header", "footer"]
 
 # Whole-token markers (matched against class/id/role split on -, _, space) for
 # specific noise WIDGETS: cookie/consent banners, ads, share/social buttons,
@@ -108,20 +114,25 @@ _NOISE_IDS = {
 
 _TOKEN_SPLIT = re.compile(r"[-_\s]+")
 
-# Link/line text that is pure UI chrome, not content (exact-line match).
+# Link/line text that is pure UI chrome, not content (exact-line match). Also
+# drops bare connector words left stranded on their own line when get_text
+# splits an inline link out of a sentence (e.g. "... ago in Student Life").
 _JUNK_LINE_RE = re.compile(
     r"^(read more|show more|see more|learn more|share|tweet|save|print|"
     r"sign in|log ?in|sign up|subscribe|menu|home|back to top|"
+    r"in|on|by|at|of|the|and|or|"
     r"\d+\s*comments?|\d+\s*shares?|\d+\s*likes?)$",
     re.IGNORECASE,
 )
 
-# Footer/skip boilerplate that survives as plain text (prefix / contains match):
-# "Skip to main content", copyright notices, footer legal links.
+# Footer / CMS-metadata boilerplate that survives as plain text (prefix /
+# contains match): copyright + legal links, plus blog/FAQ post metadata such as
+# "Last Updated:", "Tags:", "Posted in", "Filed under", "Categories:".
 _BOILERPLATE_LINE_RE = re.compile(
     r"(^skip to\b|^copyright\b|©|\ball rights reserved\b|"
     r"^(privacy policy|terms of (use|service)|cookie policy|sitemap|"
-    r"do not sell)\b)",
+    r"do not sell|last updated|tags?|posted (on|in|by)|filed under|"
+    r"categor(y|ies)|share this|related posts?|leave a (comment|reply))\b)",
     re.IGNORECASE,
 )
 
@@ -171,22 +182,31 @@ def clean_html(raw_html: str) -> str:
     """
     if _HAVE_BS4:
         soup = BeautifulSoup(raw_html, "html.parser")
-        # Drop whole noise sections (scripts, nav, footers, buttons, forms...).
-        for tag in soup(_NOISE_TAGS):
+        # Work from <body> only so the <head> (page <title>, meta) is dropped —
+        # the "X | SiteName" title is title-spam that otherwise out-ranks real
+        # content in retrieval. Fall back to the whole tree if there's no body.
+        root = soup.body or soup
+        # Drop always-noise sections (scripts, nav, asides, buttons, forms...).
+        for tag in root(_NOISE_TAGS):
             tag.decompose()
+        # Drop header/footer ONLY when they're site chrome (not an article's own
+        # title/byline header inside <article>).
+        for tag in root(_SECTION_NOISE_TAGS):
+            if tag.find_parent("article") is None:
+                tag.decompose()
         # Drop elements whose class/id/role marks them as boilerplate.
         # Collect first, then decompose: decomposing during iteration detaches
         # descendants and corrupts the walk.
-        noise = [el for el in soup.find_all(True) if _is_noise_element(el)]
+        noise = [el for el in root.find_all(True) if _is_noise_element(el)]
         for el in noise:
             if el.attrs is not None:   # skip if already removed via a parent
                 el.decompose()
         # Drop "Read more" / "Share" style links left in the body.
-        for a in soup.find_all("a"):
+        for a in root.find_all("a"):
             if a.attrs is not None and _JUNK_LINE_RE.match(a.get_text(strip=True)):
                 a.decompose()
         # get_text with newline separators so paragraph breaks survive.
-        text = soup.get_text(separator="\n")
+        text = root.get_text(separator="\n")
         return text
 
     # Fallback: no bs4 — remove script/style blocks, then all remaining tags.
@@ -201,14 +221,41 @@ def normalize_whitespace(text: str) -> str:
     collapse duplicate blank lines while preserving paragraph breaks."""
     # Decode ALL HTML entities (&amp; &nbsp; &#39; &quot; ...) in one pass.
     text = html.unescape(text).replace("\xa0", " ")
-    # Trim each line, strip stray edge punctuation, drop UI-chrome lines, and
-    # collapse consecutive duplicate lines (repeated nav/menu/table rows).
-    lines = []
+
+    # Pass 1: trim each line, strip stray edge punctuation, drop UI-chrome lines
+    # and short page-title/breadcrumb lines ("X | SiteName", "A | B | C").
+    candidates = []
     for line in text.splitlines():
         line = line.strip().strip(_EDGE_PUNCT).strip()
         if not line or _is_junk_line(line):
             continue
-        if lines and line == lines[-1]:
+        if len(line) < 80 and " | " in line:   # title / breadcrumb separator
+            continue
+        candidates.append(line)
+
+    # Find repeated boilerplate: SHORT, DIGIT-FREE lines, NOT ending in sentence
+    # punctuation, that occur 3+ times (nav menus, repeated site name). Guards:
+    #   - digit-free protects repeated data like zip codes / prices in tables
+    #   - the ".?!:" exclusion protects repeated content headings and questions
+    #     (e.g. an FAQ's "Does MDC have student housing?" repeats but is content)
+    def _dedupable(ln: str) -> bool:
+        return (len(ln) <= 40 and ln[-1] not in ".?!:"
+                and not any(ch.isdigit() for ch in ln))
+
+    counts = Counter(ln.lower() for ln in candidates if _dedupable(ln))
+    boilerplate = {key for key, n in counts.items() if n >= 3}
+
+    # Pass 2: keep the first occurrence of each boilerplate line, drop repeats,
+    # and collapse consecutive duplicates (case-insensitive).
+    lines = []
+    seen = set()
+    for line in candidates:
+        low = line.lower()
+        if low in boilerplate:
+            if low in seen:
+                continue
+            seen.add(low)
+        if lines and low == lines[-1].lower():
             continue
         lines.append(line)
     text = "\n".join(lines)

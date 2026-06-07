@@ -78,7 +78,11 @@ I will use **all-MiniLM-L6-v2** from the Sentence Transformers library. This mod
 
 **Top-k:**
 
-I will retrieve the **top 5 most relevant chunks (top-k = 5)** for each query. Retrieving five chunks provides enough context to answer most housing-related questions while reducing the amount of irrelevant information passed to the language model.
+I started at **top-k = 5** and tuned up to **top-k = 7** after seeing real retrieval
+results. A borderline-but-correct chunk (notably the MDC FAQ "no on-campus housing" answer)
+kept landing just outside the top 5 behind several apartment-listing chunks, so widening to
+7 improves recall without adding much irrelevant context. (I also de-spammed the listing
+pages' title/nav chunks during ingestion, which were falsely out-ranking real content.)
 
 **Production tradeoff reflection:**
 
@@ -175,5 +179,18 @@ However, larger models require more computational resources, increased memory us
   Reddit's challenge page — must be saved manually into documents/raw/).
 
 **Milestone 4 — Embedding and retrieval:**
+
+- **Tool:** Claude (Claude Code).
+- **Input I gave it:** my Retrieval Approach section (all-MiniLM-L6-v2, top-k = 5, ChromaDB)
+  and the chunk schema produced by ingest.py ({id, source, chunk_index, text}).
+- **What it produced:** `embed.py` (loads documents/chunks.json, embeds with all-MiniLM-L6-v2,
+  upserts into a persistent ChromaDB collection with {source, chunk_index} metadata) and
+  `retrieve.py` (retrieve(query, k=5) returning chunks + source + similarity score).
+- **How I verified:** built the index (194 chunks) and ran all 5 evaluation questions;
+  metadata attribution is attached to every result and similarity scores are sensible.
+- **Notable finding to revisit:** for Q1 ("does MDC provide dormitories?") the definitive
+  FAQ chunk ("Miami Dade does not provide or supervise housing facilities") did NOT rank in
+  the top-5 — listing-page titles out-scored it. Good candidate for the Failure Case Analysis
+  and for k-tuning.
 
 **Milestone 5 — Generation and interface:**
