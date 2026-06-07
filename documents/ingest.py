@@ -52,13 +52,13 @@ PDF_EXTENSIONS = {".pdf"}
 # --- Optional dependencies (degrade gracefully if not installed) -------------
 
 try:
-    from bs4 import BeautifulSoup  # beautifulsoup4
+    from bs4 import BeautifulSoup  # type: ignore[import]  # beautifulsoup4
     _HAVE_BS4 = True
 except ImportError:
     _HAVE_BS4 = False
 
 try:
-    import pdfplumber
+    import pdfplumber  # type: ignore[import]
     _HAVE_PDFPLUMBER = True
 except ImportError:
     _HAVE_PDFPLUMBER = False
@@ -130,6 +130,11 @@ _BOILERPLATE_LINE_RE = re.compile(
 # leftover from inline links that get_text split onto their own line.
 _PUNCT_ONLY_RE = re.compile(r"^([\[\](){}|•·–—\-*:>\s]+|map)$", re.IGNORECASE)
 
+# Stray separator punctuation to strip from the ENDS of a line (e.g. the trailing
+# "[" left when an inline <a>Map</a> link is removed). Parentheses are excluded
+# on purpose so phone numbers like "(645) 236-8019" survive intact.
+_EDGE_PUNCT = " \t\r\n|[]{}•·–—*>:"
+
 
 def _is_junk_line(line: str) -> bool:
     """True if a line is UI chrome, footer boilerplate, or a punctuation-only
@@ -196,11 +201,14 @@ def normalize_whitespace(text: str) -> str:
     collapse duplicate blank lines while preserving paragraph breaks."""
     # Decode ALL HTML entities (&amp; &nbsp; &#39; &quot; ...) in one pass.
     text = html.unescape(text).replace("\xa0", " ")
-    # Trim each line; drop pure-whitespace lines and leftover UI-chrome lines.
+    # Trim each line, strip stray edge punctuation, drop UI-chrome lines, and
+    # collapse consecutive duplicate lines (repeated nav/menu/table rows).
     lines = []
     for line in text.splitlines():
-        line = line.strip()
+        line = line.strip().strip(_EDGE_PUNCT).strip()
         if not line or _is_junk_line(line):
+            continue
+        if lines and line == lines[-1]:
             continue
         lines.append(line)
     text = "\n".join(lines)
@@ -362,7 +370,14 @@ def inspect(name: str | None = None) -> None:
     if not documents:
         print(f"No documents found in {source_dir()}.")
         return
-    chosen = next((p for p in documents if name and name in p.name), documents[0])
+    chosen = None
+    if name:
+        chosen = next((p for p in documents if name in p.name), None)
+        if chosen is None:
+            print(f"No document matching {name!r}; showing {documents[0].name} "
+                  "instead. Available: "
+                  + ", ".join(p.name for p in documents) + "\n")
+    chosen = chosen or documents[0]
     raw, is_html = load_document(chosen)
     cleaned = clean_text(raw, is_html=is_html)
     print(f"===== CLEANED: {chosen.name} "
