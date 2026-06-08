@@ -278,10 +278,11 @@ and open http://localhost:7860.
 - **"Your question"** — a multi-line textbox. Submit by clicking the **"Ask"** button *or*
   pressing Enter. Five example questions are provided as one-click buttons.
 
-**Output fields:**
-- **"Answer"** — the grounded answer text from Groq `llama-3.3-70b-versatile`.
-- **"Retrieved from"** — the programmatically-built list of source documents the answer drew
-  from (empty when the system declines to answer).
+**Output field:**
+- **"Answer"** — the grounded answer text from Groq `llama-3.3-70b-versatile`, with each fact
+  **citing its source inline** in parentheses, e.g. `(source: Casita — Student Accommodation
+  Near MDC)`. When the documents don't cover the question, the answer is "I don't have enough
+  information on that." with no citation.
 
 **Sample interaction transcript:**
 
@@ -294,11 +295,6 @@ Answer:
   Professional Housing, and Homestays (source: Casita — Student Accommodation Near
   MDC), as well as fully equipped apartments and rooms for rent (source:
   Student.com — MDC Housing).
-
-Retrieved from:
-  • Casita — Student Accommodation Near MDC
-  • Student.com — MDC Housing
-  • MDC FAQ — Does MDC Have Student Housing?
 ```
 
 ---

@@ -4,7 +4,7 @@ Milestone 5b — Gradio interface for The Unofficial Guide.
 The full pipeline behind this UI:
     query -> retrieve.py (ChromaDB + all-MiniLM-L6-v2, top-k)
           -> generate.py (Groq llama-3.3-70b-versatile, grounded prompt)
-          -> answer + programmatic source list
+          -> answer with inline source citations
 
 Run:
     python app.py
@@ -27,14 +27,14 @@ EXAMPLE_QUESTIONS = [
 ]
 
 
-def handle_query(question: str) -> tuple[str, str]:
-    """UI callback: run the RAG pipeline; return (answer, sources) for two boxes."""
+def handle_query(question: str) -> str:
+    """UI callback: run the RAG pipeline and return the answer (sources are cited
+    inline within the answer text, so no separate sources box is shown)."""
     try:
         result = answer_question(question)
     except Exception as err:                       # surface config/runtime errors
-        return f"⚠️ {err}", ""
-    sources = "\n".join(f"• {s}" for s in result["sources"])
-    return result["answer"], sources
+        return f"⚠️ {err}"
+    return result["answer"]
 
 
 with gr.Blocks(title="The Unofficial Guide — MDC Off-Campus Housing") as demo:
@@ -42,7 +42,7 @@ with gr.Blocks(title="The Unofficial Guide — MDC Off-Campus Housing") as demo:
         "# The Unofficial Guide — MDC Off-Campus Housing\n"
         "Ask about off-campus housing for Miami Dade College students. Answers are "
         "**grounded in retrieved documents only** — if the documents don't cover your "
-        "question, the assistant says so. The documents used are listed under *Retrieved from*."
+        "question, the assistant says so. Each answer cites its sources inline."
     )
     inp = gr.Textbox(
         label="Your question",
@@ -51,12 +51,11 @@ with gr.Blocks(title="The Unofficial Guide — MDC Off-Campus Housing") as demo:
     )
     btn = gr.Button("Ask", variant="primary")
     answer = gr.Textbox(label="Answer", lines=8)
-    sources = gr.Textbox(label="Retrieved from", lines=4)
 
     gr.Examples(examples=EXAMPLE_QUESTIONS, inputs=inp)
 
-    btn.click(handle_query, inputs=inp, outputs=[answer, sources])
-    inp.submit(handle_query, inputs=inp, outputs=[answer, sources])
+    btn.click(handle_query, inputs=inp, outputs=answer)
+    inp.submit(handle_query, inputs=inp, outputs=answer)
 
 
 if __name__ == "__main__":
