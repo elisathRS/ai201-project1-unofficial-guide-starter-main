@@ -456,3 +456,11 @@ I used **Claude (Claude Code)** throughout, always prompting it with the relevan
   retrieved chunks' metadata and attaches it in code, and omits sources entirely when the answer
   is the "not enough information" fallback. I also added a code-level gate that returns the
   fallback without calling the LLM when retrieval is empty.
+
+  ---
+
+  ## Video Walkthrough
+
+<img src='video_unofficial_guide.gif' title='Video Walkthrough' width='' alt='Video Walkthrough' />
+
+---
