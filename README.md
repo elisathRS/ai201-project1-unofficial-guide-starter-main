@@ -450,6 +450,6 @@ I used **Claude (Claude Code)** throughout, always prompting it with the relevan
 
   ## Video Walkthrough
 
-[Watch the Loom video](https://www.loom.com/share/b364181698564d7fae0fbd3bdb2127f7)
+     [Watch the video](https://www.loom.com/share/b364181698564d7fae0fbd3bdb2127f7)
 
 ---
